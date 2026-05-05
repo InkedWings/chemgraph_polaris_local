@@ -49,7 +49,7 @@ add_case Exp1 single_agent \
   'Provide the SMILES string corresponding to this molecule: 9-[(2,6-dichlorophenyl)methyl]-N-(furan-2-ylmethyl)purin-6-amine'
 
 add_case Exp2 single_agent \
-  'Provide the XYZ coordinates corresponding to this molecule: fluoranthen-1-ylmethanol'
+  'Provide the XYZ coordinates corresponding to this molecule: benzene'
 
 add_case Exp3 single_agent \
   "Perform geometry optimization for a molecule Hydrogen using $UMA_METHOD."
