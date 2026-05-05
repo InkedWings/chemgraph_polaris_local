@@ -1,0 +1,47 @@
+FROM continuumio/miniconda3:latest
+
+WORKDIR /app
+
+COPY . /app
+
+# ARM-friendly variant of the standard ChemGraph image.
+# This image intentionally does not include any vLLM setup.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gfortran \
+    git \
+    cmake \
+    pkg-config \
+    curl \
+    liblapack-dev \
+    libblas-dev \
+    libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 \
+    libxrandr2 libxrender1 libxss1 libxtst6 libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+    libcups2 libdrm2 libgbm1 libasound2 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN conda install -y -c conda-forge \
+    python=3.11 \
+    rdkit \
+    nwchem \
+    && conda clean -afy
+
+RUN pip install --no-cache-dir . && \
+    pip install --no-cache-dir jupyterlab
+
+# Install Python tblite from source with conservative flags to avoid ABI/symbol issues on ARM.
+RUN CFLAGS="-O2 -fno-tree-vectorize" \
+    FFLAGS="-O2 -fno-tree-vectorize" \
+    pip install --no-cache-dir --no-binary=tblite --force-reinstall "tblite==0.5.0"
+
+# Validate calculator runtimes at build time after package install.
+RUN which nwchem && python -c "from tblite.ase import TBLite"
+
+RUN git config --system --add safe.directory /app
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+EXPOSE 8888 8501 9003
+
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--LabApp.token="]

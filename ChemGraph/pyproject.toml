@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chemgraphagent"
+version = "0.3.4"
+description = "A computational chemistry agent for molecular simulation tasks."
+authors = [
+    { name = "Thang Pham", email = "tpham@anl.gov" },
+    { name = "Murat Keçeli", email = "keceli@anl.gov" },
+    { name = "Aditya Tanikanti", email = "atanikanti@anl.gov" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph",
+    "langchain",
+    "langchain-openai",
+    "langchain-ollama",
+    "langchain-anthropic",
+    "langchain-google-genai",
+    "langchain-groq",
+    "langchain-experimental",
+    "langchain-mcp-adapters",
+    "langgraph-prebuilt",
+    "pydantic",
+    "pandas==2.2.3",
+    "pubchempy==1.0.5",
+    "pyppeteer==2.0.0",
+    "numpy==2.2.6",
+    "numexpr==2.11.0",
+    "pytest==8.4.1",
+    "deepdiff==8.5.0",
+    "ase",
+    "rdkit",
+    "pymatgen",
+    "mace-torch",
+    "globus_sdk",
+    "streamlit==1.48.1",
+    "stmol==0.0.9",
+    "ipython-genutils==0.2.0",
+    "langsmith==0.3.45",
+    "rich==14.1.0",
+    "toml==0.10.2",
+    "mcp",
+    "fastmcp",
+    "pytest-asyncio",
+    "grandalf==0.8"
+    ]
+
+[project.optional-dependencies]
+calculators = [
+    "tblite==0.5.0; python_version < '3.13' or platform_system != 'Darwin'",
+]
+uma = [
+    "fairchem-core==2.3.0",
+    "e3nn>=0.5",
+]
+ui = [
+    "streamlit",
+    "stmol",
+    "ipython-genutils",
+]
+parsl = [
+    "parsl",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/argonne-lcf/ChemGraph"
+"Repository" = "https://github.com/argonne-lcf/ChemGraph"
+
+[project.scripts]
+chemgraph = "ui.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src/"]
+
+[tool.ruff]
+line-length = 88  # Match Black's default (adjust as needed)
+target-version = "py310"  # Adjust based on your Python version
+exclude = ["notebooks/"]  # Add files/folders to ignore
+
+[tool.ruff.format]
+quote-style = "preserve"  # Keep existing quote style
+indent-style = "space"  # Use spaces for indentation
+skip-magic-trailing-comma = false  # Ensure Black-style formatting
+
+[tool.pytest.ini_options]
+markers = [
+    "llm: marks tests as requiring LLM API access (run with --run-llm)",
+    "asyncio: marks async tests",
+]
+filterwarnings = [
+    "ignore:Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected.*:UserWarning",
+    "ignore:In future, it will be an error for 'np.bool' scalars to be interpreted as an index:DeprecationWarning",
+]

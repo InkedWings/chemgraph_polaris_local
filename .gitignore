@@ -1,0 +1,46 @@
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Local environments
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Runtime output
+logs/
+bench_results/
+ChemGraph/cg_logs/
+*.traj
+
+# Local model/container caches and images
+hf_cache/
+vllm_cache/
+.apptainer/
+containers/
+*.sif
+*.simg
+
+# Large model artifacts
+*.bin
+*.pt
+*.pth
+*.safetensors
+*.gguf
+
+# Build metadata
+*.egg-info/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~

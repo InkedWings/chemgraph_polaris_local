@@ -1,0 +1,52 @@
+x-chemgraph-common: &chemgraph-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: chemgraph:local
+  working_dir: /app
+  volumes:
+    - .:/app
+  environment:
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    GROQ_API_KEY: ${GROQ_API_KEY:-}
+    CHEMGRAPH_LOG_DIR: /app/cg_logs
+    PYTHONPATH: /app/src
+
+services:
+  jupyter:
+    <<: *chemgraph-common
+    profiles: ["jupyter"]
+    ports:
+      - "8888:8888"
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        git config --global --add safe.directory /app
+        exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --LabApp.token=
+
+  streamlit:
+    <<: *chemgraph-common
+    profiles: ["streamlit"]
+    ports:
+      - "8501:8501"
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        git config --global --add safe.directory /app
+        exec streamlit run src/ui/app.py --server.address=0.0.0.0 --server.port=8501
+
+  mcp:
+    <<: *chemgraph-common
+    profiles: ["mcp"]
+    ports:
+      - "9003:9003"
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        git config --global --add safe.directory /app
+        exec python -m chemgraph.mcp.mcp_tools --transport streamable_http --host 0.0.0.0 --port 9003

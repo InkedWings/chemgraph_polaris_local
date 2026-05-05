@@ -1,0 +1,57 @@
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+**/__pycache__/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDEs / editors
+.vscode/
+.idea/
+*.iml
+
+# Pytest cache
+.pytest_cache/
+
+# MacOS
+.DS_Store
+
+# Jupyter Notebook checkpoints and modified notebooks
+.ipynb_checkpoints/
+
+# env
+chemgraph-env/
+# env
+.env
+# Log files
+*run_logs/
+*vib/
+plots/
+initial_evaluations/
+test/
+test_outputs/
+*ir/
+
+.venv
+combine*
+vllm/
+logs/
+error_log.txt
+.env
+test.csv
+nwchem/
+nwchem.nwi
+nwchem.nwo
+
+vib*.traj
