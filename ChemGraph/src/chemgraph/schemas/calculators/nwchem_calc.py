@@ -1,6 +1,9 @@
 # Main keywords and parameters obtained from https://wiki.fysik.dtu.dk/ase/_modules/ase/calculators/nwchem.html
 # Parameters for NWChem calculator in CompChemAgent
 
+import os
+import sys
+from pathlib import Path
 from typing import Optional, Union, Dict
 from pydantic import BaseModel, Field
 from ase.calculators.nwchem import NWChem
@@ -62,6 +65,20 @@ class NWChemCalc(BaseModel):
         description="Command to execute NWChem (e.g., 'nwchem PREFIX.nwi > PREFIX.nwo').",
     )
 
+    @staticmethod
+    def _ensure_nwchem_data_paths() -> None:
+        """Set conda-forge NWChem data paths when conda activation was skipped."""
+        prefix = Path(os.environ.get("CONDA_PREFIX", sys.prefix))
+        share_dir = prefix / "share" / "nwchem"
+        basis_dir = share_dir / "libraries"
+        nwpw_dir = share_dir / "libraryps"
+
+        if "NWCHEM_BASIS_LIBRARY" not in os.environ and basis_dir.is_dir():
+            os.environ["NWCHEM_BASIS_LIBRARY"] = str(basis_dir) + os.sep
+
+        if "NWCHEM_NWPW_LIBRARY" not in os.environ and nwpw_dir.is_dir():
+            os.environ["NWCHEM_NWPW_LIBRARY"] = str(nwpw_dir) + os.sep
+
     def get_calculator(self):
         """Get an ASE-compatible NWChem calculator instance.
 
@@ -79,6 +96,8 @@ class NWChemCalc(BaseModel):
             raise ValueError(
                 "Invalid calculator_type. The only valid option is 'nwchem'."
             )
+
+        self._ensure_nwchem_data_paths()
 
         return NWChem(
             theory=self.theory,
