@@ -79,6 +79,17 @@ class NWChemCalc(BaseModel):
         if "NWCHEM_NWPW_LIBRARY" not in os.environ and nwpw_dir.is_dir():
             os.environ["NWCHEM_NWPW_LIBRARY"] = str(nwpw_dir) + os.sep
 
+    @staticmethod
+    def _default_work_directory() -> str:
+        """Use the current ChemGraph session log dir for NWChem scratch files."""
+        log_dir = os.environ.get("CHEMGRAPH_LOG_DIR")
+        if not log_dir:
+            return "."
+
+        directory = Path(log_dir) / "nwchem"
+        directory.mkdir(parents=True, exist_ok=True)
+        return str(directory)
+
     def get_calculator(self):
         """Get an ASE-compatible NWChem calculator instance.
 
@@ -98,12 +109,15 @@ class NWChemCalc(BaseModel):
             )
 
         self._ensure_nwchem_data_paths()
+        directory = self.directory
+        if directory in ("", "."):
+            directory = self._default_work_directory()
 
         return NWChem(
             theory=self.theory,
             xc=self.xc,
             basis=self.basis,
             kpts=self.kpts,
-            directory=self.directory,
+            directory=directory,
             command=self.command,
         )
