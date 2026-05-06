@@ -39,7 +39,7 @@ launch_worker() {
   echo "Launching $worker_id on $WORKER_NODE; logdir=$logdir"
 
   ssh -o BatchMode=yes -o ConnectTimeout=8 "$WORKER_NODE" \
-    "CHEMGRAPH_LOCAL_ROOT='$ROOT' VLLM_NODE='$VLLM_NODE' VLLM_PORT='$VLLM_PORT' CHEMGRAPH_MODEL='$MODEL' CHEMGRAPH_SMOKE_LOG_DIR='$logdir' '$SMOKE_SCRIPT'" \
+    "CHEMGRAPH_LOCAL_ROOT='$ROOT' VLLM_NODE='$VLLM_NODE' VLLM_PORT='$VLLM_PORT' CHEMGRAPH_MODEL='$MODEL' CHEMGRAPH_WORKER_ID='$worker_id' CHEMGRAPH_SMOKE_LOG_DIR='$logdir' '$SMOKE_SCRIPT'" \
     >"$launcher_log" 2>&1 &
 
   pids+=("$!")

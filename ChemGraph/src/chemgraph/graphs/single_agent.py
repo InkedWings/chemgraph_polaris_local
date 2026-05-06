@@ -20,6 +20,7 @@ from chemgraph.prompt.single_agent_prompt import (
     report_prompt,
 )
 from chemgraph.utils.logging_config import setup_logger
+from chemgraph.utils.profiling import profile_llm_invoke, profile_tools
 from chemgraph.state.state import State
 
 logger = setup_logger(__name__)
@@ -180,8 +181,15 @@ def ChemGraphAgent(state: State, llm: ChatOpenAI, system_prompt: str, tools=None
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"{state['messages']}"},
     ]
+    tools = profile_tools(tools)
     llm_with_tools = llm.bind_tools(tools=tools)
-    return {"messages": [llm_with_tools.invoke(messages)]}
+    response = profile_llm_invoke(
+        llm_with_tools,
+        messages,
+        "single_agent.ChemGraphAgent",
+        {"tool_count": len(tools or [])},
+    )
+    return {"messages": [response]}
 
 
 def ResponseAgent(state: State, llm: ChatOpenAI, formatter_prompt: str):
@@ -206,7 +214,11 @@ def ResponseAgent(state: State, llm: ChatOpenAI, formatter_prompt: str):
         {"role": "user", "content": f"{state['messages']}"},
     ]
     llm_structured_output = llm.with_structured_output(ResponseFormatter)
-    response = llm_structured_output.invoke(messages).model_dump_json()
+    response = profile_llm_invoke(
+        llm_structured_output,
+        messages,
+        "single_agent.ResponseAgent",
+    ).model_dump_json()
     return {"messages": [response]}
 
 
@@ -241,12 +253,19 @@ def ReportAgent(
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"{state['messages']}"},
     ]
+    tools = profile_tools(tools)
     llm_with_tools = llm.bind_tools(
         tools=tools,
         tool_choice="generate_html",
         parallel_tool_calls=False,
     )
-    return {"messages": [llm_with_tools.invoke(messages)]}
+    response = profile_llm_invoke(
+        llm_with_tools,
+        messages,
+        "single_agent.ReportAgent",
+        {"tool_count": len(tools or [])},
+    )
+    return {"messages": [response]}
 
 
 def construct_single_agent_graph(
@@ -293,6 +312,7 @@ def construct_single_agent_graph(
                 save_atomsdata_to_file,
                 calculator,
             ]
+        tools = profile_tools(tools)
         tool_node = ToolNode(tools=tools)
         graph_builder = StateGraph(State)
 
@@ -307,13 +327,14 @@ def construct_single_agent_graph(
             graph_builder.add_edge(START, "ChemGraphAgent")
 
             if generate_report:
-                tool_node_report = ToolNode(tools=[generate_html])
+                report_tools = profile_tools([generate_html])
+                tool_node_report = ToolNode(tools=report_tools)
                 graph_builder.add_node("report_tools", tool_node_report)
 
                 graph_builder.add_node(
                     "ReportAgent",
                     lambda state: ReportAgent(
-                        state, llm, system_prompt=report_prompt, tools=[generate_html]
+                        state, llm, system_prompt=report_prompt, tools=report_tools
                     ),
                 )
                 graph_builder.add_conditional_edges(

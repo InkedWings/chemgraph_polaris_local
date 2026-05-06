@@ -24,6 +24,7 @@ from chemgraph.schemas.multi_agent_response import (
     ResponseFormatter,
 )
 from chemgraph.utils.logging_config import setup_logger
+from chemgraph.utils.profiling import profile_llm_invoke, profile_tools
 from chemgraph.state.multi_agent_state import ManagerWorkerState
 
 logger = setup_logger(__name__)
@@ -140,7 +141,11 @@ def PlannerAgent(
     if support_structured_output is True:
         structured_llm = llm.with_structured_output(PlannerResponse)
         try:
-            response = structured_llm.invoke(messages)
+            response = profile_llm_invoke(
+                structured_llm,
+                messages,
+                "multi_agent.PlannerAgent.structured",
+            )
             return {"messages": [response.model_dump_json()]}
         except Exception as e:
             if _is_connection_error(e):
@@ -151,7 +156,11 @@ def PlannerAgent(
                 e,
             )
 
-    raw_response = llm.invoke(messages).content
+    raw_response = profile_llm_invoke(
+        llm,
+        messages,
+        "multi_agent.PlannerAgent.raw",
+    ).content
     try:
         parsed = _parse_planner_response(raw_response)
         return {"messages": [parsed.model_dump_json()]}
@@ -172,7 +181,11 @@ def PlannerAgent(
                 ),
             },
         ]
-        retry_response = llm.invoke(retry_message).content
+        retry_response = profile_llm_invoke(
+            llm,
+            retry_message,
+            "multi_agent.PlannerAgent.retry",
+        ).content
         try:
             parsed_retry = _parse_planner_response(retry_response)
             return {"messages": [parsed_retry.model_dump_json()]}
@@ -209,6 +222,7 @@ def WorkerAgent(
             smiles_to_coordinate_file,
             extract_output_json,
         ]
+    tools = profile_tools(tools)
 
     worker_id = state["current_worker"]
     history = state.get("worker_messages", [])
@@ -217,7 +231,12 @@ def WorkerAgent(
 
     messages = [{"role": "system", "content": system_prompt}] + history
     llm_with_tools = llm.bind_tools(tools=tools)
-    response = llm_with_tools.invoke(messages)
+    response = profile_llm_invoke(
+        llm_with_tools,
+        messages,
+        "multi_agent.WorkerAgent",
+        {"worker_id": worker_id, "tool_count": len(tools or [])},
+    )
 
     # Append new LLM response directly back into the worker's channel
     state["worker_messages"].append(response)
@@ -258,7 +277,11 @@ def AggregatorAgent(state: ManagerWorkerState, llm: ChatOpenAI, system_prompt: s
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"{state['messages']}"},
     ]
-    response = llm.invoke(messages)
+    response = profile_llm_invoke(
+        llm,
+        messages,
+        "multi_agent.AggregatorAgent",
+    )
     return {"messages": [response]}
 
 
@@ -289,7 +312,11 @@ def ResponseAgent(
         {"role": "user", "content": f"{state['messages']}"},
     ]
     llm_structured_output = llm.with_structured_output(ResponseFormatter)
-    response = llm_structured_output.invoke(messages).model_dump_json()
+    response = profile_llm_invoke(
+        llm_structured_output,
+        messages,
+        "multi_agent.ResponseAgent",
+    ).model_dump_json()
     return {"messages": [response]}
 
 
@@ -465,10 +492,6 @@ def construct_multi_agent_graph(
         graph_builder.add_node("extract_tasks", extract_tasks)
         graph_builder.add_node("loop_control", loop_control)
 
-        graph_builder.add_node(
-            "WorkerAgent",
-            lambda state: WorkerAgent(state, llm, system_prompt=executor_prompt),
-        )
         if tools is None:
             tools = [
                 run_ase,
@@ -476,6 +499,13 @@ def construct_multi_agent_graph(
                 smiles_to_coordinate_file,
                 extract_output_json,
             ]
+        tools = profile_tools(tools)
+        graph_builder.add_node(
+            "WorkerAgent",
+            lambda state: WorkerAgent(
+                state, llm, system_prompt=executor_prompt, tools=tools
+            ),
+        )
         tools_node = ToolNode(tools=tools, messages_key="worker_messages")
         graph_builder.add_node("tools", tools_node)
         graph_builder.add_node("increment", increment_index)

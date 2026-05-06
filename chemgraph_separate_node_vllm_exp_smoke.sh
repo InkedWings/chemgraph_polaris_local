@@ -27,6 +27,8 @@ REACTION_RECURSION_LIMIT="${CHEMGRAPH_REACTION_RECURSION_LIMIT:-100}"
 UMA_METHOD="${CHEMGRAPH_UMA_METHOD:-FAIRChem calculator with task_name omol, model_name uma-s-1p1, device cpu}"
 STAMP="$(date +%Y-%m-%d_%H-%M-%S)"
 LOGDIR="${CHEMGRAPH_SMOKE_LOG_DIR:-$WORKDIR/cg_logs/separate_node_vllm_exp_smoke_uma_$STAMP}"
+TASK_TIMES="$LOGDIR/task_times.csv"
+WORKER_ID="${CHEMGRAPH_WORKER_ID:-$(basename "$LOGDIR")}"
 
 module use /soft/modulefiles
 module load spack-pe-base
@@ -122,7 +124,7 @@ classify() {
     return
   fi
 
-  if grep -Eq 'Traceback|Unsupported workflow type|Error running workflow|Error processing query|Recursion limit|APIConnectionError|BadRequestError|"status": "failure"|CalculationFailed|failed with command|MPI_ABORT|list index out of range|too many values to unpack' "$log"; then
+  if grep -Eq 'Traceback|Unsupported workflow type|Error running workflow|Error processing query|Recursion limit|APIConnectionError|BadRequestError|"status": "failure"|CalculationFailed|failed with command|MPI_ABORT|list index out of range|too many values to unpack|<tool_call>|</tool_call>' "$log"; then
     echo FAIL
     return
   fi
@@ -131,13 +133,23 @@ classify() {
 }
 
 run_case() {
-  local workflow="$1"
-  local query="$2"
-  local log="$3"
-  local recursion_limit="$4"
+  local task_id="$1"
+  local workflow="$2"
+  local query="$3"
+  local log="$4"
+  local recursion_limit="$5"
+  local event_log="$6"
+  local event_log_container="$event_log"
 
-  timeout "$TIMEOUT_SECONDS" apptainer exec "${base_env[@]}" "$IMAGE" \
-    chemgraph -q "$query" -m "$MODEL" -w "$workflow" -o last_message \
+  if [[ "$event_log" == "$WORKDIR/"* ]]; then
+    event_log_container="/work/${event_log#"$WORKDIR"/}"
+  fi
+
+  timeout "$TIMEOUT_SECONDS" apptainer exec "${base_env[@]}" \
+    --env "CHEMGRAPH_PROFILE_EVENTS=$event_log_container" \
+    --env "CHEMGRAPH_PROFILE_TASK_ID=$task_id" \
+    --env "CHEMGRAPH_PROFILE_WORKER_ID=$WORKER_ID" \
+    "$IMAGE" chemgraph -q "$query" -m "$MODEL" -w "$workflow" -o last_message \
       --recursion-limit "$recursion_limit" >"$log" 2>&1
 }
 
@@ -146,12 +158,14 @@ echo "WORKER_HOST=$(hostname)"
 echo "BASE_URL=$BASE_URL"
 echo "VLLM_HOST=$VLLM_HOST"
 echo "MODEL=$MODEL"
+echo "WORKER_ID=$WORKER_ID"
 echo "NO_PROXY=$NO_PROXY_LOCAL"
 echo "UMA_METHOD=$UMA_METHOD"
 echo "TIMEOUT_SECONDS=$TIMEOUT_SECONDS"
 echo "DEFAULT_RECURSION_LIMIT=$DEFAULT_RECURSION_LIMIT"
 echo "REACTION_RECURSION_LIMIT=$REACTION_RECURSION_LIMIT"
 printf 'id,status,seconds,workflow,recursion_limit,log\n' | tee "$LOGDIR/summary.csv"
+printf 'id,start_epoch,end_epoch,start_iso,end_iso,seconds,workflow,recursion_limit,query_file,log,event_log\n' >"$TASK_TIMES"
 
 for i in "${!ids[@]}"; do
   id="${ids[$i]}"
@@ -159,23 +173,32 @@ for i in "${!ids[@]}"; do
   query="${queries[$i]}"
   recursion_limit="${recursion_limits[$i]}"
   log="$LOGDIR/$id.log"
+  event_log="$log.events.jsonl"
 
   printf '\n== %s (%s) ==\n' "$id" "$workflow"
   printf 'query: %s\n' "$query" >"$log.query"
   printf 'recursion_limit: %s\n' "$recursion_limit" >>"$log.query"
 
+  start_epoch="$(date +%s.%N)"
+  start_iso="$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
   start="$(date +%s)"
   set +e
-  run_case "$workflow" "$query" "$log" "$recursion_limit"
+  run_case "$id" "$workflow" "$query" "$log" "$recursion_limit" "$event_log"
   code="$?"
   set -e
   end="$(date +%s)"
+  end_epoch="$(date +%s.%N)"
+  end_iso="$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
   seconds="$((end - start))"
   status="$(classify "$code" "$log")"
 
   printf '%s,%s,%s,%s,%s,%s\n' "$id" "$status" "$seconds" "$workflow" "$recursion_limit" "$log" | tee -a "$LOGDIR/summary.csv"
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    "$id" "$start_epoch" "$end_epoch" "$start_iso" "$end_iso" "$seconds" \
+    "$workflow" "$recursion_limit" "$log.query" "$log" "$event_log" >>"$TASK_TIMES"
   tail -n 8 "$log" | sed 's/^/  tail: /'
 done
 
 echo
 echo "Summary written to $LOGDIR/summary.csv"
+echo "Task timing written to $TASK_TIMES"
